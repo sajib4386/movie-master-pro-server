@@ -32,6 +32,8 @@ async function run() {
         await client.connect();
         const db = client.db('movie_master_pro_db');
         const moviesCollection = db.collection('movies');
+        const usersCollection = db.collection('users')
+
 
         // Movies APIs
         app.get('/movies', async (req, res) => {
@@ -53,6 +55,22 @@ async function run() {
             const query = { _id: new ObjectId(id) }
             const result = await moviesCollection.findOne(query)
             res.send(result)
+        })
+
+        // Users APIS
+        app.post('/users', async (req, res) => {
+            const newUser = req.body;
+            const email = req.body.email;
+            const query = { email: email }
+            const existingUser = await usersCollection.findOne(query)
+            if (existingUser) {
+                res.send({ Message: 'User Already Exist' })
+            }
+            else {
+                const result = await usersCollection.insertOne(newUser);
+                res.send(result);
+            }
+
         })
 
 
