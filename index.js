@@ -74,12 +74,20 @@ async function run() {
         })
 
         // Stats
-        app.get('/stats' , async (req ,res) => {
+        app.get('/stats', async (req, res) => {
             const totalMovies = await moviesCollection.estimatedDocumentCount();
             const totalUsers = await usersCollection.estimatedDocumentCount();
-            const result = {totalMovies,totalUsers};
+            const result = { totalMovies, totalUsers };
             res.send(result)
         })
+
+        // Top-Rated Movies
+        app.get('/top-rated', async (req, res) => {
+            const cursor = moviesCollection.find().sort({ rating: -1 }).limit(5);
+            const result = await cursor.toArray();
+            res.send(result);
+        });
+
 
 
         // Send a ping to confirm a successful connection
