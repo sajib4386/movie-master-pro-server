@@ -88,7 +88,12 @@ async function run() {
             res.send(result);
         });
 
-
+        //  Latest Movies
+        app.get('/latest-movies', async (req, res) => {
+            const cursor = moviesCollection.find().sort({ created_at: -1 }).limit(6);
+            const result = await cursor.toArray();
+            res.send(result)
+        })
 
         // Send a ping to confirm a successful connection
         await client.db("admin").command({ ping: 1 });
