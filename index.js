@@ -42,7 +42,7 @@ async function run() {
             res.send(result)
         })
 
-        //   Create Product Info
+        //   Create Movies Info
         app.post('/movies', async (req, res) => {
             const newMovie = req.body;
             const result = await moviesCollection.insertOne(newMovie);
@@ -71,6 +71,14 @@ async function run() {
                 res.send(result);
             }
 
+        })
+
+        // Stats
+        app.get('/stats' , async (req ,res) => {
+            const totalMovies = await moviesCollection.estimatedDocumentCount();
+            const totalUsers = await usersCollection.estimatedDocumentCount();
+            const result = {totalMovies,totalUsers};
+            res.send(result)
         })
 
 
