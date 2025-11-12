@@ -37,14 +37,22 @@ async function run() {
 
         // Movies APIs
         app.get('/movies', async (req, res) => {
-            const cursor = moviesCollection.find();
+            const addedBy = req.query.addedBy;
+
+            const query = {};
+            if (addedBy) {
+                query.addedBy = addedBy;
+            }
+
+            const cursor = moviesCollection.find(query);
             const result = await cursor.toArray();
             res.send(result)
         })
 
-        //   Create Movies Info
+        //   Create Movie Info
         app.post('/movies', async (req, res) => {
             const newMovie = req.body;
+            newMovie.created_at = new Date();
             const result = await moviesCollection.insertOne(newMovie);
             res.send(result);
         })
@@ -56,6 +64,42 @@ async function run() {
             const result = await moviesCollection.findOne(query)
             res.send(result)
         })
+
+        // Update a movie
+        app.patch('/movies/:id', async (req, res) => {
+            const id = req.params.id;
+            const updatedMovie = req.body;
+
+            const query = { _id: new ObjectId(id) };
+            const update = {
+                $set: {
+                    title: updatedMovie.title,
+                    genre: updatedMovie.genre,
+                    rating: updatedMovie.rating,
+                    releaseYear: updatedMovie.releaseYear,
+                    duration: updatedMovie.duration,
+                    language: updatedMovie.language,
+                    country: updatedMovie.country,
+                    director: updatedMovie.director,
+                    cast: updatedMovie.cast,
+                    posterUrl: updatedMovie.posterUrl,
+                    plotSummary: updatedMovie.plotSummary
+                }
+            };
+
+            const result = await moviesCollection.updateOne(query, update);
+            res.send(result);
+        });
+
+
+        // Delete a movie
+        app.delete('/movies/:id', async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id) };
+            const result = await moviesCollection.deleteOne(query);
+            res.send(result);
+        });
+
 
         // Users APIS
         app.post('/users', async (req, res) => {
