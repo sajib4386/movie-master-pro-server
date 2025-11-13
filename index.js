@@ -1,14 +1,49 @@
 const express = require('express')
 const cors = require('cors')
+const admin = require("firebase-admin");
 require('dotenv').config()
 const app = express()
 const port = process.env.PORT || 3000
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 
 
+const serviceAccount = require("./movie-master-pro-firebase-adminsdk.json");
+
+admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount)
+});
+
+
 // middleware
 app.use(cors());
 app.use(express.json());
+
+
+
+// Firebase Auth Token Verification
+
+const verifyFirebaseToken = async (req, res, next) => {
+    if (!req.headers.authorization) {
+        return res.status(401).send({ message: 'Unauthorized Access' })
+    }
+
+    const token = req.headers.authorization.split(' ')[1];
+    if (!token) {
+        return res.status(401).send({ message: 'Unauthorized Access' })
+    }
+
+    try {
+        const userInfo = await admin.auth().verifyIdToken(token);
+        req.token_email = userInfo.email;
+        next()
+    }
+
+    catch (err) {
+        return res.status(401).send({ message: 'Unauthorized Access' });
+    }
+
+}
+
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@sajib43.hq7hrle.mongodb.net/?appName=Sajib43`;
 
@@ -37,25 +72,44 @@ async function run() {
 
         // Movies APIs
         app.get('/movies', async (req, res) => {
-            const addedBy = req.query.addedBy;
-
+            const { addedBy, genres, minRating, maxRating } = req.query;
             const query = {};
+
+            // Filter by who added the movie
             if (addedBy) {
                 query.addedBy = addedBy;
             }
 
+            // Filter by multiple genres using $in
+            if (genres) {
+                const genreArray = genres.split(',').map(g => g.trim());
+                query.genre = { $in: genreArray };
+            }
+
+            // Filter by rating range using $gte and $lte
+            if (minRating || maxRating) {
+                query.rating = {};
+                if (minRating) query.rating.$gte = parseFloat(minRating);
+                if (maxRating) query.rating.$lte = parseFloat(maxRating);
+            }
+
             const cursor = moviesCollection.find(query);
             const result = await cursor.toArray();
-            res.send(result)
-        })
+            res.send(result);
+        });
+
+
 
         //   Create Movie Info
-        app.post('/movies', async (req, res) => {
+        app.post('/movies', verifyFirebaseToken, async (req, res) => {
             const newMovie = req.body;
             newMovie.created_at = new Date();
+
+            newMovie.addedBy = req.token_email;
+
             const result = await moviesCollection.insertOne(newMovie);
             res.send(result);
-        })
+        });
 
         //   Find Specific/One Movie
         app.get('/movies/:id', async (req, res) => {
@@ -66,11 +120,16 @@ async function run() {
         })
 
         // Update a movie
-        app.patch('/movies/:id', async (req, res) => {
+        app.patch('/movies/:id', verifyFirebaseToken, async (req, res) => {
             const id = req.params.id;
             const updatedMovie = req.body;
-
             const query = { _id: new ObjectId(id) };
+
+            const existing = await moviesCollection.findOne({ _id: new ObjectId(id) });
+            if (existing.addedBy !== req.token_email) {
+                return res.status(403).send({ message: 'Forbidden Access' });
+            }
+
             const update = {
                 $set: {
                     title: updatedMovie.title,
@@ -93,9 +152,19 @@ async function run() {
 
 
         // Delete a movie
-        app.delete('/movies/:id', async (req, res) => {
+        app.delete('/movies/:id', verifyFirebaseToken, async (req, res) => {
             const id = req.params.id;
             const query = { _id: new ObjectId(id) };
+
+            const existing = await moviesCollection.findOne({ _id: new ObjectId(id) });
+
+            if (!existing) {
+                return res.status(404).send({ message: 'Movie not found' });
+            }
+            if (existing.addedBy !== req.token_email) {
+                return res.status(403).send({ message: 'Forbidden Access' });
+            }
+
             const result = await moviesCollection.deleteOne(query);
             res.send(result);
         });
@@ -108,7 +177,8 @@ async function run() {
             const query = { email: email }
             const existingUser = await usersCollection.findOne(query)
             if (existingUser) {
-                res.send({ Message: 'User Already Exist' })
+                return res.status(409).send({ message: 'User already exists' });
+
             }
             else {
                 const result = await usersCollection.insertOne(newUser);
