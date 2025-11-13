@@ -24,6 +24,7 @@ app.use(express.json());
 
 const verifyFirebaseToken = async (req, res, next) => {
     if (!req.headers.authorization) {
+        console.log(req.headers.authorization)
         return res.status(401).send({ message: 'Unauthorized Access' })
     }
 
@@ -43,6 +44,7 @@ const verifyFirebaseToken = async (req, res, next) => {
     }
 
 }
+
 
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@sajib43.hq7hrle.mongodb.net/?appName=Sajib43`;
@@ -208,6 +210,42 @@ async function run() {
             const result = await cursor.toArray();
             res.send(result)
         })
+
+        // Watchlist APIs 
+        app.post('/watchlist', verifyFirebaseToken, async (req, res) => {
+            const { movieId } = req.body;
+            const email = req.token_email;
+
+            const existing = await db.collection('watchlist').findOne({ movieId, email });
+            if (existing) {
+                return res.status(409).send({ message: 'Already in watchlist' });
+            }
+
+            const result = await db.collection('watchlist').insertOne({ movieId, email, addedAt: new Date() });
+            res.send(result);
+        });
+
+        // User Watchlist
+        app.get('/watchlist', verifyFirebaseToken, async (req, res) => {
+            const email = req.token_email;
+            const watchlist = await db.collection('watchlist').find({ email }).toArray();
+
+            const movieIds = watchlist.map(item => new ObjectId(item.movieId));
+            const movies = await db.collection('movies').find({ _id: { $in: movieIds } }).toArray();
+
+            res.send(movies);
+        });
+
+        // Delete from Watchlist
+        app.delete('/watchlist/:id', verifyFirebaseToken, async (req, res) => {
+            const id = req.params.id;
+            const email = req.token_email;
+
+            const result = await db.collection('watchlist').deleteOne({ movieId: id, email });
+            res.send(result);
+        });
+
+
 
         // Send a ping to confirm a successful connection
         await client.db("admin").command({ ping: 1 });
