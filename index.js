@@ -149,7 +149,10 @@ async function run() {
         app.post('/watchlist', async (req, res) => {
             const { movieId, email } = req.body;
 
-            const existing = await db.collection('watchlist').findOne({ movieId, email });
+            const existing = await db.collection('watchlist').findOne({
+                movieId: new ObjectId(movieId),
+                email
+            });
 
             if (existing) {
                 return res.send({
@@ -159,7 +162,7 @@ async function run() {
             }
 
             const result = await db.collection('watchlist').insertOne({
-                movieId,
+                movieId: new ObjectId(movieId),
                 email,
                 addedAt: new Date()
             });
@@ -183,7 +186,10 @@ async function run() {
         app.delete('/watchlist/:id', async (req, res) => {
             const { email } = req.query;
             const id = req.params.id;
-            const result = await db.collection('watchlist').deleteOne({ movieId: id, email });
+            const result = await db.collection('watchlist').deleteOne({
+                movieId: new ObjectId(id),
+                email
+            });
             res.send(result);
         });
 
