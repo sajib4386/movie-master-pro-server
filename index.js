@@ -26,41 +26,62 @@ app.get('/', (req, res) => {
 
 async function run() {
     try {
-        await client.connect();
+        // await client.connect();
         const db = client.db('movie_master_pro_db');
         const moviesCollection = db.collection('movies');
         const usersCollection = db.collection('users');
 
         // Movies APIs
         app.get('/movies', async (req, res) => {
-            const { addedBy, genres, minRating, maxRating } = req.query;
+            const { page = 1, limit = 8, genres, search, sort, minRating, maxRating } = req.query;
             const query = {};
 
-            if (addedBy) {
-                query.addedBy = addedBy;
-            }
-
+            // Filter by genre
             if (genres) {
                 const genreArray = genres.split(',').map(g => g.trim());
                 query.genre = { $in: genreArray };
             }
 
+            // Search
+            if (search) {
+                query.title = { $regex: search, $options: "i" };
+            }
+
+            // Filter by rating
             if (minRating || maxRating) {
                 query.rating = {};
                 if (minRating) query.rating.$gte = parseFloat(minRating);
                 if (maxRating) query.rating.$lte = parseFloat(maxRating);
             }
 
-            const cursor = moviesCollection.find(query);
-            const result = await cursor.toArray();
-            res.send(result);
+            // Sorting
+            const sortOptions = {};
+            if (sort) {
+                sortOptions.rating = parseInt(sort);
+            }
+
+            const skip = (page - 1) * parseInt(limit);
+
+            const movies = await moviesCollection
+                .find(query)
+                .sort(sortOptions)
+                .skip(skip)
+                .limit(parseInt(limit))
+                .toArray();
+
+            // Total pages
+            const totalCount = await moviesCollection.countDocuments(query);
+            const totalPages = Math.ceil(totalCount / parseInt(limit));
+
+            res.send({ result: movies, totalPages });
         });
 
-        // Create Movie Info (no auth)
+
+        // Create Movie Info
         app.post('/movies', async (req, res) => {
             const newMovie = req.body;
             newMovie.created_at = new Date();
-            // You may want to keep addedBy field optional or leave blank
+            
             newMovie.addedBy = newMovie.addedBy || 'anonymous';
 
             const result = await moviesCollection.insertOne(newMovie);
@@ -75,7 +96,7 @@ async function run() {
             res.send(result);
         });
 
-        // Update a movie (no auth)
+        // Update a movie 
         app.patch('/movies/:id', async (req, res) => {
             const id = req.params.id;
             const updatedMovie = req.body;
@@ -101,7 +122,7 @@ async function run() {
             res.send(result);
         });
 
-        // Delete a movie (no auth)
+        // Delete a movie 
         app.delete('/movies/:id', async (req, res) => {
             const id = req.params.id;
             const query = { _id: new ObjectId(id) };
